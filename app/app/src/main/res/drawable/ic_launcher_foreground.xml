@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <!-- Simple phone icon -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M40,28h28c2.2,0 4,1.8 4,4v44c0,2.2 -1.8,4 -4,4h-28c-2.2,0 -4,-1.8 -4,-4v-44c0,-2.2 1.8,-4 4,-4zM42,34v36h24v-36h-24zM54,74m-3,0a3,3 0,1 1,6 0a3,3 0,1 1,-6 0" />
+</vector>
