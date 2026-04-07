@@ -1,8 +1,16 @@
 # OpenPhone
 
-A human layer over your phone, powered by LLM.
+### A new way to interact with our phones.
 
-OpenPhone is an AI agent that understands your phone's screen and executes actions on your behalf — tap, swipe, type, open apps — all from a natural language prompt. It runs as a floating overlay on top of other apps, so it can see and interact with whatever is on screen.
+We tap, swipe, scroll, type — hundreds of times a day, every day. What if you could just *say what you want* and your phone does it?
+
+OpenPhone is an AI layer that sits between you and your phone. It sees your screen, understands it, and acts on it — just like you would, but from a single sentence. No custom APIs, no app integrations, no shortcuts to configure. It works with *any* app, *any* screen, because it interacts with your phone the same way you do: by looking and tapping.
+
+> "Find the last highlights video on YouTube and play it"
+
+That's it. That's the input. The agent reads the screen, reasons about what to do next, taps the right buttons, types in search bars, scrolls through results — step by step until the job is done.
+
+Local LLM on your device, or cloud. Your choice. Your data.
 
 ## How it works
 
