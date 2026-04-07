@@ -1,6 +1,8 @@
 package com.openphone.agent.ui
 
+import android.app.Activity
 import android.content.Intent
+import android.net.Uri
 import android.provider.Settings
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -20,16 +22,15 @@ import androidx.compose.ui.unit.sp
 import com.openphone.agent.AgentViewModel
 import com.openphone.agent.LlmMode
 import com.openphone.agent.accessibility.PhoneControlService
+import com.openphone.agent.overlay.OverlayService
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AgentScreen(viewModel: AgentViewModel) {
     val context = LocalContext.current
-    var goalText by remember { mutableStateOf("") }
     val logEntries = viewModel.logEntries
     val isModelLoaded by viewModel.isModelLoaded
     val isModelLoading by viewModel.isModelLoading
-    val isRunning by viewModel.isRunning
     val modelName by viewModel.modelName
     val llmMode by viewModel.llmMode
     val groqApiKey by viewModel.groqApiKey
@@ -74,14 +75,14 @@ fun AgentScreen(viewModel: AgentViewModel) {
                     onClick = { viewModel.setMode(LlmMode.LOCAL) },
                     label = { Text("Local Model") },
                     modifier = Modifier.weight(1f),
-                    enabled = !isRunning
+                    enabled = true
                 )
                 FilterChip(
                     selected = llmMode == LlmMode.GROQ,
                     onClick = { viewModel.setMode(LlmMode.GROQ) },
                     label = { Text("Groq Cloud") },
                     modifier = Modifier.weight(1f),
-                    enabled = !isRunning
+                    enabled = true
                 )
             }
 
@@ -116,7 +117,7 @@ fun AgentScreen(viewModel: AgentViewModel) {
                         modifier = Modifier.fillMaxWidth(),
                         singleLine = true,
                         visualTransformation = PasswordVisualTransformation(),
-                        enabled = !isRunning
+                        enabled = true
                     )
 
                     // Model picker
@@ -139,7 +140,7 @@ fun AgentScreen(viewModel: AgentViewModel) {
                             label = { Text("Model") },
                             trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = modelExpanded) },
                             modifier = Modifier.fillMaxWidth().menuAnchor(),
-                            enabled = !isRunning
+                            enabled = true
                         )
                         ExposedDropdownMenu(
                             expanded = modelExpanded,
@@ -179,70 +180,76 @@ fun AgentScreen(viewModel: AgentViewModel) {
                 } else null
             )
 
-            // Goal input
-            OutlinedTextField(
-                value = goalText,
-                onValueChange = { goalText = it },
-                label = { Text("What should I do?") },
-                placeholder = { Text("e.g., open chrome and search for weather") },
-                modifier = Modifier.fillMaxWidth(),
-                enabled = !isRunning,
-                singleLine = true
-            )
+            // Launch overlay button
+            val canLaunch = isModelLoaded && isAccessibilityEnabled.value
+            Button(
+                onClick = {
+                    // Check overlay permission
+                    if (!Settings.canDrawOverlays(context)) {
+                        val intent = Intent(
+                            Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
+                            Uri.parse("package:${context.packageName}")
+                        )
+                        context.startActivity(intent)
+                        return@Button
+                    }
 
-            // Run / Stop
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    // Start overlay service and minimize app
+                    context.startForegroundService(
+                        Intent(context, OverlayService::class.java)
+                    )
+                    // Go to home screen — the overlay stays on top
+                    val homeIntent = Intent(Intent.ACTION_MAIN).apply {
+                        addCategory(Intent.CATEGORY_HOME)
+                        flags = Intent.FLAG_ACTIVITY_NEW_TASK
+                    }
+                    context.startActivity(homeIntent)
+                },
+                enabled = canLaunch,
+                modifier = Modifier.fillMaxWidth()
             ) {
-                Button(
-                    onClick = {
-                        if (goalText.isNotBlank()) {
-                            viewModel.runAgent(goalText.trim())
-                        }
-                    },
-                    enabled = isModelLoaded && isAccessibilityEnabled.value && !isRunning && goalText.isNotBlank(),
-                    modifier = Modifier.weight(1f)
-                ) {
-                    Text("Run")
-                }
-
-                OutlinedButton(
-                    onClick = { viewModel.stopAgent() },
-                    enabled = isRunning,
-                    modifier = Modifier.weight(1f)
-                ) {
-                    Text("Stop")
-                }
+                Text(if (!Settings.canDrawOverlays(context)) "Grant Overlay Permission" else "Launch Overlay")
             }
 
-            // Log
-            Text(
-                "Log",
-                style = MaterialTheme.typography.titleSmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
+            if (!canLaunch) {
+                Text(
+                    "Configure the model and enable accessibility above, then launch the overlay to use the agent over other apps.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
 
-            LazyColumn(
-                state = listState,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .weight(1f)
-                    .background(
-                        MaterialTheme.colorScheme.surfaceVariant,
-                        MaterialTheme.shapes.medium
-                    )
-                    .padding(8.dp)
-            ) {
-                items(logEntries) { entry ->
-                    Text(
-                        text = entry,
-                        fontSize = 12.sp,
-                        fontFamily = FontFamily.Monospace,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.padding(vertical = 2.dp)
-                    )
+            // Log (from main app, for setup feedback)
+            if (logEntries.isNotEmpty()) {
+                Text(
+                    "Log",
+                    style = MaterialTheme.typography.titleSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+
+                LazyColumn(
+                    state = listState,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .weight(1f)
+                        .background(
+                            MaterialTheme.colorScheme.surfaceVariant,
+                            MaterialTheme.shapes.medium
+                        )
+                        .padding(8.dp)
+                ) {
+                    items(logEntries) { entry ->
+                        Text(
+                            text = entry,
+                            fontSize = 12.sp,
+                            fontFamily = FontFamily.Monospace,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.padding(vertical = 2.dp)
+                        )
+                    }
                 }
+            } else {
+                Spacer(modifier = Modifier.weight(1f))
             }
         }
     }
