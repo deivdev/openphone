@@ -9,6 +9,7 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.openphone.agent.agent.AgentLoop
 import com.openphone.agent.llm.GroqBackend
+import com.openphone.agent.llm.LitertLmBackend
 import com.openphone.agent.llm.LlmBackend
 import com.openphone.agent.llm.LocalLlmBackend
 import kotlinx.coroutines.Dispatchers
@@ -21,9 +22,11 @@ class AgentViewModel(application: Application) : AndroidViewModel(application) {
 
     private val prefs = application.getSharedPreferences("openphone", Context.MODE_PRIVATE)
 
-    private var localBackend = LocalLlmBackend()
+    private var llamaCppBackend = LocalLlmBackend()
+    private var litertBackend = LitertLmBackend()
+    private var activeLocalBackend: LlmBackend = llamaCppBackend
     private var groqBackend: GroqBackend? = null
-    private var currentBackend: LlmBackend = localBackend
+    private var currentBackend: LlmBackend = activeLocalBackend
 
     private val agentLoop = AgentLoop(currentBackend) { step ->
         addLog("[${step.step}/${step.maxSteps}] ${step.status}")
@@ -67,11 +70,11 @@ class AgentViewModel(application: Application) : AndroidViewModel(application) {
 
         when (mode) {
             LlmMode.LOCAL -> {
-                currentBackend = localBackend
+                currentBackend = activeLocalBackend
                 agentLoop.setBackend(currentBackend)
-                isModelLoaded.value = localBackend.isReady()
+                isModelLoaded.value = activeLocalBackend.isReady()
                 modelName.value = prefs.getString("model_name", "") ?: ""
-                if (!localBackend.isReady()) {
+                if (!activeLocalBackend.isReady()) {
                     val savedPath = prefs.getString("model_path", null)
                     val savedName = prefs.getString("model_name", null)
                     if (savedPath != null && savedName != null && File(savedPath).exists()) {
@@ -117,23 +120,38 @@ class AgentViewModel(application: Application) : AndroidViewModel(application) {
 
     // --- Local model loading ---
 
+    private fun isLitertModel(fileName: String): Boolean =
+        fileName.endsWith(".litertlm", ignoreCase = true) ||
+            fileName.endsWith(".task", ignoreCase = true)
+
+    /** Loads the model with the engine matching its extension. Returns an engine label, or null on failure. */
+    private fun loadLocalModel(path: String): String? {
+        return if (isLitertModel(path)) {
+            if (litertBackend.loadModel(path, contextSize = 4096)) {
+                activeLocalBackend = litertBackend
+                "LiteRT-LM/${litertBackend.backendName}"
+            } else null
+        } else {
+            if (llamaCppBackend.loadModel(path, nThreads = 4, contextSize = 4096)) {
+                activeLocalBackend = llamaCppBackend
+                "llama.cpp/CPU"
+            } else null
+        }
+    }
+
     private fun loadModelFromPath(path: String, name: String) {
         viewModelScope.launch(Dispatchers.IO) {
             isModelLoading.value = true
             addLog("Loading saved model: $name")
 
             try {
-                val success = localBackend.loadModel(
-                    path = path,
-                    nThreads = 4,
-                    contextSize = 4096
-                )
-                if (success) {
+                val engine = loadLocalModel(path)
+                if (engine != null) {
                     isModelLoaded.value = true
                     modelName.value = name
-                    currentBackend = localBackend
+                    currentBackend = activeLocalBackend
                     agentLoop.setBackend(currentBackend)
-                    addLog("Model loaded: $name")
+                    addLog("Model loaded: $name ($engine)")
                 } else {
                     addLog("Error: Failed to load saved model")
                     prefs.edit().remove("model_path").remove("model_name").apply()
@@ -177,18 +195,14 @@ class AgentViewModel(application: Application) : AndroidViewModel(application) {
                 }
 
                 addLog("Initializing LLM (this may take a moment)...")
-                val success = localBackend.loadModel(
-                    path = modelFile.absolutePath,
-                    nThreads = 4,
-                    contextSize = 4096
-                )
+                val engine = loadLocalModel(modelFile.absolutePath)
 
-                if (success) {
+                if (engine != null) {
                     isModelLoaded.value = true
                     modelName.value = fileName
-                    currentBackend = localBackend
+                    currentBackend = activeLocalBackend
                     agentLoop.setBackend(currentBackend)
-                    addLog("Model loaded: $fileName")
+                    addLog("Model loaded: $fileName ($engine)")
 
                     prefs.edit()
                         .putString("model_path", modelFile.absolutePath)
@@ -229,7 +243,8 @@ class AgentViewModel(application: Application) : AndroidViewModel(application) {
 
     override fun onCleared() {
         super.onCleared()
-        localBackend.release()
+        llamaCppBackend.release()
+        litertBackend.release()
         groqBackend?.release()
     }
 

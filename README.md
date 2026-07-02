@@ -40,7 +40,9 @@ Native app that runs entirely on the phone — no ADB, no USB, no PC needed.
 
 - Kotlin + Jetpack Compose for configuration
 - Floating overlay panel for running the agent on top of other apps
-- **Local LLM**: llama.cpp via NDK, runs Gemma GGUF models on-device
+- **Local LLM**, two engines picked by model file extension:
+  - LiteRT-LM (`.litertlm`/`.task`) — Google's on-device runtime, GPU-accelerated with CPU fallback
+  - llama.cpp via NDK (`.gguf`) — CPU only
 - **Cloud LLM**: Groq API (Llama 3.3 70B, Gemma2, Mixtral)
 - Android Accessibility Service for UI tree reading and gesture dispatch
 
@@ -53,7 +55,7 @@ adb install -r app/build/outputs/apk/debug/app-debug.apk
 #### Setup
 
 1. Open the app and configure your LLM:
-   - **Local**: pick a GGUF model file (e.g. Gemma 4 E4B Q4_K_M, ~4.6GB)
+   - **Local**: pick a model file — `.litertlm` recommended (e.g. [gemma-4-E4B-it](https://huggingface.co/litert-community/gemma-4-E4B-it-litert-lm) or [gemma-3n-E4B-it-int4](https://huggingface.co/google/gemma-3n-E4B-it-litert-lm)); `.gguf` files still work via llama.cpp on CPU
    - **Groq**: paste your API key and select a model
 2. Enable the Accessibility Service in Android Settings
 3. Grant "Display over other apps" permission
@@ -65,4 +67,4 @@ The overlay auto-collapses while the agent works, then expands to show results. 
 ## Stack
 
 - Python, ADB, Groq API (prototype)
-- Kotlin, Jetpack Compose, llama.cpp, Android Accessibility Service (app)
+- Kotlin, Jetpack Compose, LiteRT-LM, llama.cpp, Android Accessibility Service (app)
