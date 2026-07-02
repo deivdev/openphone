@@ -223,6 +223,7 @@ class OverlayService : Service() {
     }
 
     private fun addLog(msg: String) {
+        android.util.Log.i("OpenPhoneAgent", msg)
         scope.launch(Dispatchers.Main) {
             val current = txtLog.text.toString()
             val updated = if (current.isEmpty()) msg else "$current\n$msg"

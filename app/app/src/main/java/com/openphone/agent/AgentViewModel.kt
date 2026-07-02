@@ -59,6 +59,7 @@ class AgentViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     private fun addLog(msg: String) {
+        android.util.Log.i("OpenPhoneAgent", msg)
         logEntries.add(msg)
     }
 
@@ -181,7 +182,10 @@ class AgentViewModel(application: Application) : AndroidViewModel(application) {
                 val fileName = getFileName(context, uri)
                 val modelFile = File(context.filesDir, fileName)
 
-                if (!modelFile.exists()) {
+                // Re-copy if missing or size differs (e.g. stale copy of a partial download)
+                val sourceSize = context.contentResolver
+                    .openFileDescriptor(uri, "r")?.use { it.statSize } ?: -1L
+                if (!modelFile.exists() || modelFile.length() != sourceSize) {
                     addLog("Copying model to app storage, please wait...")
                     inputStream.use { input ->
                         modelFile.outputStream().use { output ->
