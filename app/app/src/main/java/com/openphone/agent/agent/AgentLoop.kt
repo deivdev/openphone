@@ -1,7 +1,8 @@
 package com.openphone.agent.agent
 
 import com.openphone.agent.accessibility.PhoneControlService
-import com.openphone.agent.llm.LlmBackend
+import com.openphone.agent.llm.ModelManager
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
@@ -14,13 +15,9 @@ data class StepInfo(
 )
 
 class AgentLoop(
-    private var llm: LlmBackend,
+    private val model: ModelManager,
     private val onStep: (StepInfo) -> Unit
 ) {
-    fun setBackend(backend: LlmBackend) {
-        llm = backend
-    }
-
     private val maxSteps = 20
     @Volatile
     private var running = false
@@ -37,6 +34,7 @@ class AgentLoop(
             val service = PhoneControlService.instance
             if (service == null) {
                 onStep(StepInfo(step, maxSteps, "Accessibility Service not enabled", isTerminal = true))
+                running = false
                 break
             }
 
@@ -49,7 +47,17 @@ class AgentLoop(
 
             // 3. Ask LLM
             onStep(StepInfo(step, maxSteps, "Thinking... (${uiTree.lines().size} elements)"))
-            val response = llm.generate(systemPrompt, userMessage)
+            val response = try {
+                model.generate(systemPrompt, userMessage)
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                if (!running) break
+                onStep(StepInfo(step, maxSteps, "Model error: ${e.message}", isTerminal = true))
+                running = false
+                break
+            }
+            if (!running) break
 
             // Log the raw response for debugging
             val preview = response.take(200).replace("\n", " ")
@@ -67,10 +75,12 @@ class AgentLoop(
             // 5. Terminal states
             if (action.type == "done") {
                 onStep(StepInfo(step, maxSteps, "Done: ${action.reason}", isTerminal = true))
+                running = false
                 break
             }
             if (action.type == "fail") {
                 onStep(StepInfo(step, maxSteps, "Failed: ${action.reason}", isTerminal = true))
+                running = false
                 break
             }
 
@@ -83,6 +93,7 @@ class AgentLoop(
             delay(1500)
         }
 
+        // Still running only if every step was used without reaching done/fail.
         if (running) {
             onStep(StepInfo(maxSteps, maxSteps, "Max steps reached", isTerminal = true))
         }
@@ -91,7 +102,7 @@ class AgentLoop(
 
     fun stop() {
         running = false
-        llm.stop()
+        model.cancel()
     }
 
     private fun buildPrompt(goal: String, uiTree: String, history: List<String>): Pair<String, String> {

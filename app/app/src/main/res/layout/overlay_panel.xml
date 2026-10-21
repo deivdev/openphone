@@ -3,46 +3,71 @@
     android:id="@+id/overlay_root"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
+    android:layout_marginHorizontal="12dp"
     android:orientation="vertical"
-    android:background="#E0222222"
-    android:padding="12dp">
+    android:background="@drawable/overlay_bg"
+    android:padding="14dp">
 
-    <!-- Header with drag handle and collapse/close -->
+    <!-- Header: drag handle, status dot, collapse/close -->
     <LinearLayout
         android:id="@+id/overlay_header"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:orientation="horizontal"
-        android:gravity="center_vertical"
-        android:paddingBottom="8dp">
+        android:gravity="center_vertical">
+
+        <View
+            android:id="@+id/status_dot"
+            android:layout_width="8dp"
+            android:layout_height="8dp"
+            android:background="@drawable/status_dot"
+            android:backgroundTint="@color/overlay_idle_dot" />
 
         <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="10dp"
+            android:text="OpenPhone"
+            android:textColor="@color/overlay_text"
+            android:textSize="22sp"
+            android:fontFamily="@font/instrument_serif" />
+
+        <TextView
+            android:id="@+id/txt_status"
             android:layout_width="0dp"
             android:layout_height="wrap_content"
             android:layout_weight="1"
-            android:text="OpenPhone"
-            android:textColor="#FFFFFF"
-            android:textSize="14sp"
-            android:textStyle="bold" />
+            android:layout_marginStart="10dp"
+            android:text="IDLE"
+            android:textColor="@color/overlay_muted"
+            android:textSize="10sp"
+            android:letterSpacing="0.08"
+            android:fontFamily="@font/space_mono_regular"
+            android:singleLine="true"
+            android:ellipsize="end" />
 
-        <Button
+        <TextView
             android:id="@+id/btn_collapse"
-            android:layout_width="40dp"
-            android:layout_height="32dp"
+            android:layout_width="36dp"
+            android:layout_height="36dp"
+            android:gravity="center"
             android:text="—"
-            android:textColor="#FFFFFF"
-            android:background="#444444"
-            android:textSize="14sp" />
+            android:textColor="@color/overlay_text"
+            android:background="@drawable/pill_outline"
+            android:textSize="13sp"
+            android:fontFamily="@font/space_mono_bold" />
 
-        <Button
+        <TextView
             android:id="@+id/btn_close"
-            android:layout_width="40dp"
-            android:layout_height="32dp"
+            android:layout_width="36dp"
+            android:layout_height="36dp"
+            android:layout_marginStart="6dp"
+            android:gravity="center"
             android:text="✕"
-            android:textColor="#FFFFFF"
-            android:background="#444444"
-            android:layout_marginStart="4dp"
-            android:textSize="14sp" />
+            android:textColor="@color/overlay_text"
+            android:background="@drawable/pill_outline"
+            android:textSize="13sp"
+            android:fontFamily="@font/space_mono_bold" />
     </LinearLayout>
 
     <!-- Content (collapsible) -->
@@ -50,6 +75,7 @@
         android:id="@+id/overlay_content"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
+        android:layout_marginTop="12dp"
         android:orientation="vertical">
 
         <EditText
@@ -57,48 +83,61 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:hint="What should I do?"
-            android:textColor="#FFFFFF"
-            android:textColorHint="#888888"
-            android:backgroundTint="#555555"
-            android:textSize="13sp"
+            android:textColor="@color/overlay_text"
+            android:textColorHint="@color/overlay_muted"
+            android:background="@drawable/overlay_input_bg"
+            android:textSize="15sp"
+            android:fontFamily="@font/space_grotesk"
             android:singleLine="true"
-            android:padding="8dp" />
+            android:imeOptions="actionGo"
+            android:paddingHorizontal="14dp"
+            android:paddingVertical="12dp" />
 
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:orientation="horizontal"
-            android:paddingTop="8dp">
+            android:layout_marginTop="10dp">
 
-            <Button
+            <TextView
                 android:id="@+id/btn_run"
                 android:layout_width="0dp"
-                android:layout_height="36dp"
+                android:layout_height="44dp"
                 android:layout_weight="1"
-                android:text="Run"
-                android:textSize="12sp" />
+                android:gravity="center"
+                android:text="RUN"
+                android:textColor="@color/on_accent"
+                android:background="@drawable/pill_accent"
+                android:textSize="13sp"
+                android:letterSpacing="0.08"
+                android:fontFamily="@font/space_mono_bold" />
 
-            <Button
+            <TextView
                 android:id="@+id/btn_stop"
                 android:layout_width="0dp"
-                android:layout_height="36dp"
+                android:layout_height="44dp"
                 android:layout_weight="1"
                 android:layout_marginStart="8dp"
-                android:text="Stop"
-                android:textSize="12sp"
-                android:enabled="false" />
+                android:gravity="center"
+                android:text="STOP"
+                android:textColor="@color/overlay_text"
+                android:background="@drawable/pill_outline"
+                android:textSize="13sp"
+                android:letterSpacing="0.08"
+                android:fontFamily="@font/space_mono_bold" />
         </LinearLayout>
 
         <TextView
             android:id="@+id/txt_log"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:maxHeight="120dp"
+            android:maxHeight="140dp"
             android:scrollbars="vertical"
             android:text=""
-            android:textColor="#AAAAAA"
+            android:textColor="@color/overlay_muted"
             android:textSize="10sp"
-            android:fontFamily="monospace"
-            android:paddingTop="8dp" />
+            android:lineSpacingExtra="2dp"
+            android:fontFamily="@font/space_mono_regular"
+            android:paddingTop="10dp" />
     </LinearLayout>
 </LinearLayout>

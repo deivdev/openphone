@@ -24,8 +24,10 @@
     (gemma-4-E4B-it, gemma-3n-E4B-it-int4) — GGUF not supported
   - Gemma-3n/Gemma-4 are multimodal → path to screenshot-based vision later
   - Requires Kotlin ≥ 2.2 (library metadata is 2.3.0) — project bumped to 2.2.21
-- Both engines coexist: file picker routes by extension (`.litertlm`/`.task` →
-  LiteRT-LM, `.gguf` → llama.cpp)
+- 2026-10: llama.cpp and Groq removed; LiteRT-LM only (0.18.1, needs Kotlin 2.4 →
+  toolchain aligned with Dear: AGP 9.4, Gradle 9.8). Catalog: litert-community
+  `gemma-4-E2B-it.litertlm` / `gemma-4-E4B-it.litertlm` (the generic files, not the
+  `-gpu`/`-web`/Tensor variants)
 
 ## Phone control approaches
 

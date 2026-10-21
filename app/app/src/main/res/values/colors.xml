@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Same as PhosphorDark in ui/theme/Theme.kt: the overlay is always dark. -->
+    <color name="accent">#3DDC84</color>
+    <color name="on_accent">#00210F</color>
+    <color name="overlay_text">#F2F2F2</color>
+    <color name="overlay_muted">#8C8C8C</color>
+    <color name="overlay_idle_dot">#555555</color>
+</resources>

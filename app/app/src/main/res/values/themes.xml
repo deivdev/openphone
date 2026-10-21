@@ -1,4 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <style name="Theme.OpenPhone" parent="android:Theme.Material.Light.NoActionBar" />
+    <!-- Black window behind Compose, so launch and edge-to-edge bars match the dark theme. -->
+    <style name="Theme.OpenPhone" parent="android:Theme.Material.NoActionBar">
+        <item name="android:windowBackground">@android:color/black</item>
+    </style>
 </resources>

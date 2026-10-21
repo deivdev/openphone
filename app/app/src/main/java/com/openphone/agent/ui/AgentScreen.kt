@@ -1,305 +1,323 @@
 package com.openphone.agent.ui
 
-import android.app.Activity
+import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import android.provider.Settings
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.lazy.rememberLazyListState
-import androidx.compose.material3.*
-import androidx.compose.runtime.*
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.safeDrawingPadding
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.LinearProgressIndicator
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.text.font.FontFamily
-import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
+import androidx.lifecycle.compose.LifecycleResumeEffect
 import com.openphone.agent.AgentViewModel
-import com.openphone.agent.LlmMode
+import com.openphone.agent.InstalledModelInfo
 import com.openphone.agent.accessibility.PhoneControlService
+import com.openphone.agent.llm.CatalogModel
+import com.openphone.agent.llm.DownloadProgress
+import com.openphone.agent.llm.ModelCatalog
+import com.openphone.agent.llm.ModelImport
+import com.openphone.agent.llm.ModelState
 import com.openphone.agent.overlay.OverlayService
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AgentScreen(viewModel: AgentViewModel) {
     val context = LocalContext.current
-    val logEntries = viewModel.logEntries
-    val isModelLoaded by viewModel.isModelLoaded
-    val isModelLoading by viewModel.isModelLoading
-    val modelName by viewModel.modelName
-    val llmMode by viewModel.llmMode
-    val groqApiKey by viewModel.groqApiKey
-    val groqModel by viewModel.groqModel
+    val modelState by viewModel.modelState.collectAsState()
+    val backend by viewModel.backend.collectAsState()
+    val installed by viewModel.installed.collectAsState()
+    val download by viewModel.download.collectAsState()
+    val modelImport by viewModel.modelImport.collectAsState()
 
-    val isAccessibilityEnabled = remember {
-        derivedStateOf { PhoneControlService.instance != null }
+    // Both are granted in system settings, so they are re-read whenever the app comes back.
+    var accessibilityOn by remember { mutableStateOf(PhoneControlService.instance != null) }
+    var overlayAllowed by remember { mutableStateOf(Settings.canDrawOverlays(context)) }
+    LifecycleResumeEffect(Unit) {
+        accessibilityOn = PhoneControlService.instance != null
+        overlayAllowed = Settings.canDrawOverlays(context)
+        onPauseOrDispose { }
     }
 
-    val filePicker = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.OpenDocument()
-    ) { uri ->
-        uri?.let { viewModel.loadModel(context, it) }
+    val modelPicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+        uri?.let { viewModel.importModel(it) }
     }
 
-    val listState = rememberLazyListState()
-    LaunchedEffect(logEntries.size) {
-        if (logEntries.isNotEmpty()) {
-            listState.animateScrollToItem(logEntries.size - 1)
-        }
-    }
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .safeDrawingPadding()
+            .verticalScroll(rememberScrollState())
+            .padding(horizontal = 16.dp)
+            .padding(bottom = 32.dp),
+    ) {
+        ScreenHeader("OpenPhone", modifier = Modifier.padding(horizontal = 4.dp))
+        MonoLabel("On-device phone agent", modifier = Modifier.padding(horizontal = 4.dp))
 
-    Scaffold(
-        topBar = {
-            TopAppBar(title = { Text("OpenPhone Agent") })
-        }
-    ) { padding ->
         Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(padding)
-                .padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp)
+            modifier = Modifier.padding(vertical = 24.dp),
+            verticalArrangement = Arrangement.spacedBy(28.dp),
         ) {
-            // Mode selector
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                FilterChip(
-                    selected = llmMode == LlmMode.LOCAL,
-                    onClick = { viewModel.setMode(LlmMode.LOCAL) },
-                    label = { Text("Local Model") },
-                    modifier = Modifier.weight(1f),
-                    enabled = true
-                )
-                FilterChip(
-                    selected = llmMode == LlmMode.GROQ,
-                    onClick = { viewModel.setMode(LlmMode.GROQ) },
-                    label = { Text("Groq Cloud") },
-                    modifier = Modifier.weight(1f),
-                    enabled = true
-                )
-            }
-
-            // Mode-specific config
-            when (llmMode) {
-                LlmMode.LOCAL -> {
-                    StatusCard(
-                        label = "Local Model",
-                        status = when {
-                            isModelLoading -> "Loading..."
-                            isModelLoaded -> modelName
-                            else -> "Not loaded"
-                        },
-                        isOk = isModelLoaded,
-                        modifier = Modifier.fillMaxWidth(),
-                        onClick = if (!isModelLoaded && !isModelLoading) {
-                            { filePicker.launch(arrayOf("*/*")) }
-                        } else null
-                    )
-                }
-                LlmMode.GROQ -> {
-                    var keyInput by remember { mutableStateOf(groqApiKey) }
-
-                    OutlinedTextField(
-                        value = keyInput,
-                        onValueChange = {
-                            keyInput = it
-                            viewModel.setGroqApiKey(it)
-                        },
-                        label = { Text("Groq API Key") },
-                        placeholder = { Text("gsk_...") },
-                        modifier = Modifier.fillMaxWidth(),
-                        singleLine = true,
-                        visualTransformation = PasswordVisualTransformation(),
-                        enabled = true
-                    )
-
-                    // Model picker
-                    var modelExpanded by remember { mutableStateOf(false) }
-                    val models = listOf(
-                        "llama-3.3-70b-versatile",
-                        "llama-3.1-8b-instant",
-                        "gemma2-9b-it",
-                        "mixtral-8x7b-32768",
-                    )
-
-                    ExposedDropdownMenuBox(
-                        expanded = modelExpanded,
-                        onExpandedChange = { modelExpanded = it }
-                    ) {
-                        OutlinedTextField(
-                            value = groqModel,
-                            onValueChange = {},
-                            readOnly = true,
-                            label = { Text("Model") },
-                            trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = modelExpanded) },
-                            modifier = Modifier.fillMaxWidth().menuAnchor(),
-                            enabled = true
-                        )
-                        ExposedDropdownMenu(
-                            expanded = modelExpanded,
-                            onDismissRequest = { modelExpanded = false }
-                        ) {
-                            models.forEach { m ->
-                                DropdownMenuItem(
-                                    text = { Text(m) },
-                                    onClick = {
-                                        viewModel.setGroqModel(m)
-                                        modelExpanded = false
-                                    }
-                                )
-                            }
+            Section("Model") {
+                installed?.let { model ->
+                    if (modelState == ModelState.ERROR) {
+                        Panel {
+                            MonoLabel("Model failed to load", color = MaterialTheme.colorScheme.error)
+                            viewModel.lastError()?.let { Text(it, style = MaterialTheme.typography.bodySmall) }
+                            PillButton("Delete model", onClick = viewModel::deleteCurrentModel, outlined = true)
                         }
-                    }
-
-                    if (groqApiKey.isNotBlank()) {
-                        StatusCard(
-                            label = "Groq",
-                            status = modelName,
-                            isOk = true,
-                            modifier = Modifier.fillMaxWidth()
+                    } else {
+                        ModelCard(
+                            model = model,
+                            state = modelState,
+                            backend = backend,
+                            onLoad = viewModel::warmUp,
+                            onDelete = viewModel::deleteCurrentModel,
                         )
                     }
                 }
+                InstallPanel(
+                    installedName = installed?.name,
+                    download = download,
+                    modelImport = modelImport,
+                    onDownload = viewModel::startDownload,
+                    onCancel = viewModel::cancelDownload,
+                    onImport = { modelPicker.launch(arrayOf("*/*")) },
+                )
             }
 
-            // Accessibility status
-            StatusCard(
-                label = "Accessibility",
-                status = if (isAccessibilityEnabled.value) "Enabled" else "Disabled",
-                isOk = isAccessibilityEnabled.value,
-                modifier = Modifier.fillMaxWidth(),
-                onClick = if (!isAccessibilityEnabled.value) {
-                    { context.startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)) }
-                } else null
-            )
-
-            // Launch overlay button
-            val canLaunch = isModelLoaded && isAccessibilityEnabled.value
-            Button(
-                onClick = {
-                    // Check overlay permission
-                    if (!Settings.canDrawOverlays(context)) {
-                        val intent = Intent(
-                            Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
-                            Uri.parse("package:${context.packageName}")
-                        )
-                        context.startActivity(intent)
-                        return@Button
-                    }
-
-                    // Start overlay service and minimize app
-                    context.startForegroundService(
-                        Intent(context, OverlayService::class.java)
+            Section("Permissions") {
+                Panel {
+                    PermissionRow(
+                        title = "Accessibility service",
+                        body = "Reads the screen and performs taps, swipes and typing.",
+                        granted = accessibilityOn,
+                        onGrant = { context.startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)) },
                     )
-                    // Go to home screen — the overlay stays on top
-                    val homeIntent = Intent(Intent.ACTION_MAIN).apply {
-                        addCategory(Intent.CATEGORY_HOME)
-                        flags = Intent.FLAG_ACTIVITY_NEW_TASK
-                    }
-                    context.startActivity(homeIntent)
-                },
-                enabled = canLaunch,
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Text(if (!Settings.canDrawOverlays(context)) "Grant Overlay Permission" else "Launch Overlay")
-            }
-
-            if (!canLaunch) {
-                Text(
-                    "Configure the model and enable accessibility above, then launch the overlay to use the agent over other apps.",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
-
-            // Log (from main app, for setup feedback)
-            if (logEntries.isNotEmpty()) {
-                Text(
-                    "Log",
-                    style = MaterialTheme.typography.titleSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-
-                LazyColumn(
-                    state = listState,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .weight(1f)
-                        .background(
-                            MaterialTheme.colorScheme.surfaceVariant,
-                            MaterialTheme.shapes.medium
-                        )
-                        .padding(8.dp)
-                ) {
-                    items(logEntries) { entry ->
-                        Text(
-                            text = entry,
-                            fontSize = 12.sp,
-                            fontFamily = FontFamily.Monospace,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.padding(vertical = 2.dp)
-                        )
-                    }
+                    PermissionRow(
+                        title = "Display over other apps",
+                        body = "Shows the agent panel on top of the app it is driving.",
+                        granted = overlayAllowed,
+                        onGrant = {
+                            context.startActivity(
+                                Intent(
+                                    Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
+                                    Uri.parse("package:${context.packageName}"),
+                                ),
+                            )
+                        },
+                    )
                 }
-            } else {
-                Spacer(modifier = Modifier.weight(1f))
+            }
+
+            val canLaunch = installed != null && accessibilityOn && overlayAllowed
+            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                PillButton(
+                    text = "Launch overlay",
+                    onClick = { launchOverlay(context) },
+                    accent = true,
+                    enabled = canLaunch,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                if (!canLaunch) {
+                    Text(
+                        "Install a model and grant both permissions, then launch the overlay to use the agent over other apps.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(horizontal = 4.dp),
+                    )
+                }
+            }
+
+            Section("About") {
+                Panel {
+                    Text(
+                        "The model runs on this phone with LiteRT-LM: nothing you ask and nothing on screen leaves the device.",
+                        style = MaterialTheme.typography.bodyMedium,
+                    )
+                    MonoLabel("Fonts: Instrument Serif, Space Grotesk, Space Mono (OFL)")
+                }
             }
         }
     }
 }
 
+/** Starts the overlay and goes home, so the panel floats over whatever the user opens next. */
+private fun launchOverlay(context: Context) {
+    context.startForegroundService(Intent(context, OverlayService::class.java))
+    context.startActivity(
+        Intent(Intent.ACTION_MAIN).apply {
+            addCategory(Intent.CATEGORY_HOME)
+            flags = Intent.FLAG_ACTIVITY_NEW_TASK
+        },
+    )
+}
+
 @Composable
-private fun StatusCard(
-    label: String,
-    status: String,
-    isOk: Boolean,
-    modifier: Modifier = Modifier,
-    onClick: (() -> Unit)? = null
+private fun ModelCard(
+    model: InstalledModelInfo,
+    state: ModelState,
+    backend: String?,
+    onLoad: () -> Unit,
+    onDelete: () -> Unit,
 ) {
-    Card(
-        modifier = modifier,
-        colors = CardDefaults.cardColors(
-            containerColor = if (isOk)
-                MaterialTheme.colorScheme.primaryContainer
-            else
-                MaterialTheme.colorScheme.errorContainer
-        ),
-        onClick = onClick ?: {}
-    ) {
-        Column(modifier = Modifier.padding(12.dp)) {
-            Text(
-                label,
-                style = MaterialTheme.typography.labelSmall,
-                color = if (isOk)
-                    MaterialTheme.colorScheme.onPrimaryContainer
-                else
-                    MaterialTheme.colorScheme.onErrorContainer
-            )
-            Text(
-                status,
-                style = MaterialTheme.typography.bodySmall,
-                color = if (isOk)
-                    MaterialTheme.colorScheme.onPrimaryContainer
-                else
-                    MaterialTheme.colorScheme.onErrorContainer
-            )
-            if (!isOk && onClick != null) {
-                Text(
-                    "Tap to configure",
-                    style = MaterialTheme.typography.labelSmall,
-                    color = if (isOk)
-                        MaterialTheme.colorScheme.onPrimaryContainer
-                    else
-                        MaterialTheme.colorScheme.onErrorContainer
-                )
+    Panel {
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+            when (state) {
+                ModelState.LOADING -> WorkingDots(dotSize = 5.dp)
+                ModelState.READY -> Dot(MaterialTheme.colorScheme.tertiary)
+                else -> Dot(MaterialTheme.colorScheme.onSurfaceVariant)
             }
+            MonoLabel(
+                when (state) {
+                    ModelState.LOADING -> "Loading"
+                    ModelState.READY -> "Loaded · ${backend ?: "?"}"
+                    else -> "Idle · loads on first use"
+                },
+                color = if (state == ModelState.READY) MaterialTheme.colorScheme.tertiary else MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+        Text(
+            ModelCatalog.byFileName(model.name)?.displayName ?: model.name.substringBeforeLast('.'),
+            style = MaterialTheme.typography.titleMedium,
+        )
+        MonoLabel("${model.name} · ${model.sizeMB} MB")
+        Row(
+            modifier = Modifier.padding(top = 8.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            if (state == ModelState.IDLE) PillButton("Load now", onClick = onLoad)
+            PillButton("Delete", onClick = onDelete, outlined = true, enabled = state != ModelState.LOADING)
+        }
+    }
+}
+
+@Composable
+private fun InstallPanel(
+    installedName: String?,
+    download: DownloadProgress,
+    modelImport: ModelImport,
+    onDownload: (CatalogModel) -> Unit,
+    onCancel: () -> Unit,
+    onImport: () -> Unit,
+) {
+    Panel {
+        MonoLabel(if (installedName != null) "Other models" else "Install a model")
+        Text(
+            "Gemma 4 in LiteRT-LM format, from Hugging Face. Runs on the GPU when the phone supports it.",
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        when (download) {
+            is DownloadProgress.Running -> {
+                MonoLabel(
+                    "Downloading ${download.model.displayName} · " +
+                        "${download.bytesDownloaded / 1_000_000} / ${download.totalBytes / 1_000_000} MB",
+                )
+                val fraction = if (download.totalBytes > 0) download.bytesDownloaded.toFloat() / download.totalBytes else 0f
+                LinearProgressIndicator(
+                    progress = { fraction.coerceIn(0f, 1f) },
+                    modifier = Modifier.fillMaxWidth(),
+                    color = MaterialTheme.colorScheme.tertiary,
+                    trackColor = MaterialTheme.colorScheme.surfaceContainerHighest,
+                )
+                PillButton("Cancel", onClick = onCancel, outlined = true)
+            }
+            else -> {
+                if (download is DownloadProgress.Failed) {
+                    MonoLabel("Download ${download.reason}", color = MaterialTheme.colorScheme.error)
+                }
+                ModelCatalog.models
+                    .filter { it.fileName != installedName }
+                    .forEach { model -> CatalogRow(model, onDownload) }
+            }
+        }
+        when (modelImport) {
+            ModelImport.Running -> Row(
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                WorkingDots()
+                MonoLabel("Copying model file")
+            }
+            is ModelImport.Rejected -> MonoLabel(
+                "Not a .litertlm model: ${modelImport.fileName ?: "?"}",
+                color = MaterialTheme.colorScheme.error,
+            )
+            is ModelImport.Failed -> MonoLabel("Import failed: ${modelImport.reason}", color = MaterialTheme.colorScheme.error)
+            is ModelImport.Imported, ModelImport.Idle -> Unit
+        }
+        PillButton(
+            "Import .litertlm file",
+            onClick = onImport,
+            outlined = true,
+            enabled = modelImport != ModelImport.Running,
+            modifier = Modifier.padding(top = 4.dp),
+        )
+    }
+}
+
+@Composable
+private fun CatalogRow(model: CatalogModel, onDownload: (CatalogModel) -> Unit) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 6.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+        Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+            Text(model.displayName, style = MaterialTheme.typography.titleSmall)
+            MonoLabel("${model.sizeMB} MB · RAM ${model.ramHint}")
+            Text(
+                model.description,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+        PillButton("Get", onClick = { onDownload(model) })
+    }
+}
+
+@Composable
+private fun PermissionRow(title: String, body: String, granted: Boolean, onGrant: () -> Unit) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 6.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+        Dot(
+            if (granted) MaterialTheme.colorScheme.tertiary else MaterialTheme.colorScheme.outline,
+            size = 8.dp,
+        )
+        Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+            Text(title, style = MaterialTheme.typography.titleSmall)
+            Text(body, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+        if (granted) {
+            MonoLabel("On", color = MaterialTheme.colorScheme.tertiary)
+        } else {
+            PillButton("Grant", onClick = onGrant)
         }
     }
 }

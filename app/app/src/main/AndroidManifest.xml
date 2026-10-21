@@ -1,7 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
-    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" />
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
@@ -16,10 +15,17 @@
     </queries>
 
     <application
-        android:label="OpenPhone Agent"
+        android:name=".OpenPhoneApp"
+        android:label="OpenPhone"
         android:icon="@mipmap/ic_launcher"
         android:theme="@style/Theme.OpenPhone"
         android:supportsRtl="true">
+
+        <!-- On API 31+ the linker blocks dlopen of vendor libs unless declared;
+             needed for the LiteRT-LM GPU (OpenCL) backend -->
+        <uses-native-library android:name="libOpenCL.so" android:required="false" />
+        <uses-native-library android:name="libOpenCL-pixel.so" android:required="false" />
+        <uses-native-library android:name="libOpenCL-car.so" android:required="false" />
 
         <activity
             android:name=".MainActivity"

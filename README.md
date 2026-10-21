@@ -40,25 +40,21 @@ Native app that runs entirely on the phone — no ADB, no USB, no PC needed.
 
 - Kotlin + Jetpack Compose for configuration
 - Floating overlay panel for running the agent on top of other apps
-- **Local LLM**, two engines picked by model file extension:
-  - LiteRT-LM (`.litertlm`/`.task`) — Google's on-device runtime, GPU-accelerated with CPU fallback
-  - llama.cpp via NDK (`.gguf`) — CPU only
-- **Cloud LLM**: Groq API (Llama 3.3 70B, Gemma2, Mixtral)
+- **Local LLM only**: Gemma 4 (E2B / E4B) on LiteRT-LM, Google's on-device runtime, GPU-accelerated with CPU fallback. Nothing leaves the phone
+- Models downloaded in-app from Hugging Face, loaded on first use and unloaded when idle
 - Android Accessibility Service for UI tree reading and gesture dispatch
 
 ```bash
 cd app
-./gradlew assembleDebug
+JAVA_HOME=~/bin/android-studio/jbr ./gradlew assembleDebug   # JDK 17–21; Kotlin 2.4, AGP 9
 adb install -r app/build/outputs/apk/debug/app-debug.apk
 ```
 
 #### Setup
 
-1. Open the app and configure your LLM:
-   - **Local**: pick a model file — `.litertlm` recommended (e.g. [gemma-4-E4B-it](https://huggingface.co/litert-community/gemma-4-E4B-it-litert-lm) or [gemma-3n-E4B-it-int4](https://huggingface.co/google/gemma-3n-E4B-it-litert-lm)); `.gguf` files still work via llama.cpp on CPU
-   - **Groq**: paste your API key and select a model
-2. Enable the Accessibility Service in Android Settings
-3. Grant "Display over other apps" permission
+1. Open the app and tap **Get** on a model ([Gemma 4 E2B](https://huggingface.co/litert-community/gemma-4-E2B-it-litert-lm) recommended, or [E4B](https://huggingface.co/litert-community/gemma-4-E4B-it-litert-lm)), or import a `.litertlm` file you already have
+2. Grant the Accessibility Service
+3. Grant "Display over other apps"
 4. Tap **Launch Overlay** — the app minimizes and a floating panel appears
 5. Type a command in the overlay and tap **Run**
 
@@ -67,4 +63,4 @@ The overlay auto-collapses while the agent works, then expands to show results. 
 ## Stack
 
 - Python, ADB, Groq API (prototype)
-- Kotlin, Jetpack Compose, LiteRT-LM, llama.cpp, Android Accessibility Service (app)
+- Kotlin, Jetpack Compose, LiteRT-LM (Gemma 4), Android Accessibility Service (app)
